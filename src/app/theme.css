@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+/*
+ * Orbit's own identity: bold, one colour per section, calm neutral surfaces.
+ * Deliberately not the Jarvis hologram-cyan look — light by default, dark
+ * follows the OS. Section colour is set as --accent on the route root, so
+ * shared components (Button, cards, the active nav item) never hardcode which
+ * section they're in.
+ */
+:root {
+  --bg: #fafafa;
+  --bg-raised: #ffffff;
+  --line: #e6e6ea;
+  --text: #17171c;
+  --text-dim: #6b6b76;
+  --text-faint: #9a9aa4;
+
+  --danger: #d64545;
+  --ok: #2f9e5c;
+
+  /* Section accents */
+  --tasks: #ff6a5a;
+  --tasks-tint: #fff0ee;
+  --notes: #f2a93c;
+  --notes-tint: #fdf3e2;
+  --calendar: #3b82f6;
+  --calendar-tint: #eaf1ff;
+  --habits: #22a06b;
+  --habits-tint: #e8f7f0;
+  --dashboard: #7c5cff;
+  --dashboard-tint: #f1edff;
+
+  --accent: var(--dashboard);
+  --accent-tint: var(--dashboard-tint);
+
+  --radius: 14px;
+  --dur: 160ms;
+  --ease: cubic-bezier(0.2, 0, 0.2, 1);
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #100f14;
+    --bg-raised: #18171e;
+    --line: #2a2a33;
+    --text: #f1f0f4;
+    --text-dim: #a3a2ac;
+    --text-faint: #6c6b76;
+
+    --tasks-tint: #2a1815;
+    --notes-tint: #2a2213;
+    --calendar-tint: #131e2f;
+    --habits-tint: #112a20;
+    --dashboard-tint: #1e1a2e;
+
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+}
+button, input, textarea, select { font-family: inherit; }
+.tabular { font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}

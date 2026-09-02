@@ -1,0 +1,50 @@
+import type React from 'react'
+import { BrowserRouter, Route, Routes } from 'react-router'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { queryClient, setupPersistence } from '@/lib/query'
+import { AuthProvider, useAuth } from '@/lib/auth'
+import { ToastProvider } from '@/components/Toast'
+import { supabaseConfigured } from '@/lib/supabase'
+import { SetupScreen } from './SetupScreen'
+import { LoginScreen } from './LoginScreen'
+import { Shell } from './Shell'
+import { Dashboard } from '@/features/dashboard/Dashboard'
+import { TasksPage } from '@/features/tasks/TasksPage'
+import { NotesPlaceholder } from '@/features/notes/NotesPlaceholder'
+import { CalendarPlaceholder } from '@/features/calendar/CalendarPlaceholder'
+import { HabitsPlaceholder } from '@/features/habits/HabitsPlaceholder'
+
+setupPersistence()
+
+function Gate({ children }: { children: React.ReactNode }) {
+  const { session, loading } = useAuth()
+  if (loading) return null
+  if (!session) return <LoginScreen />
+  return <>{children}</>
+}
+
+export function App() {
+  if (!supabaseConfigured) return <SetupScreen />
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <ToastProvider>
+          <BrowserRouter>
+            <Gate>
+              <Shell>
+                <Routes>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/tasks" element={<TasksPage />} />
+                  <Route path="/notes" element={<NotesPlaceholder />} />
+                  <Route path="/calendar" element={<CalendarPlaceholder />} />
+                  <Route path="/habits" element={<HabitsPlaceholder />} />
+                </Routes>
+              </Shell>
+            </Gate>
+          </BrowserRouter>
+        </ToastProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  )
+}
