@@ -8,7 +8,7 @@ create table if not exists lists (
   user_id uuid not null references auth.users(id) on delete cascade,
   name text not null,
   color text,
-  sort_order integer not null default 0,
+  sort_order bigint not null default 0,
   created_at timestamptz not null default now()
 );
 
@@ -23,7 +23,7 @@ create table if not exists tasks (
   due_on date,
   due_at time,
   completed_at timestamptz,
-  sort_order integer not null default 0,
+  sort_order bigint not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
