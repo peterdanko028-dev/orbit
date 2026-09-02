@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { Link } from 'react-router'
 import { useTasks } from '@/features/tasks/hooks'
 import type { TaskRow } from '@/lib/supabase'
+import { todayISO } from '@/lib/date'
 
 function isOverdue(t: TaskRow) {
   if (!t.due_on || t.status === 'done') return false
@@ -9,7 +10,7 @@ function isOverdue(t: TaskRow) {
 }
 function isToday(t: TaskRow) {
   if (!t.due_on || t.status === 'done') return false
-  return t.due_on === new Date().toISOString().slice(0, 10)
+  return t.due_on === todayISO()
 }
 
 function Stat({ label, value, accent }: { label: string; value: number; accent: string }) {

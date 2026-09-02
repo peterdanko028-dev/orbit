@@ -1,4 +1,5 @@
 import type { ListRow } from '@/lib/supabase'
+import { todayISO } from '@/lib/date'
 
 export type QuickAddResult = {
   title: string
@@ -9,9 +10,7 @@ export type QuickAddResult = {
 
 const WEEKDAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
 
-function toISODate(d: Date): string {
-  return d.toISOString().slice(0, 10)
-}
+const toISODate = todayISO
 
 function nextWeekday(from: Date, targetDow: number): Date {
   const d = new Date(from)
