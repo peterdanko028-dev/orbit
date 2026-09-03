@@ -1,5 +1,5 @@
 import type React from 'react'
-export type SectionId = 'dashboard' | 'tasks' | 'notes' | 'calendar' | 'habits'
+export type SectionId = 'today' | 'tasks' | 'notes' | 'calendar' | 'habits'
 
 export type Section = {
   id: SectionId
@@ -20,13 +20,17 @@ const icon =
     </svg>
   )
 
+// Notes, Calendar and Habits stay out of the nav until they're actually built
+// — a tab that opens to "Coming soon" is exactly the unfinished-feeling
+// clutter the app is trying not to be. See their placeholder files, unused
+// for now, for what's still to build.
 export const SECTIONS: Section[] = [
   {
-    id: 'dashboard',
+    id: 'today',
     path: '/',
-    label: 'Dashboard',
-    var: 'dashboard',
-    icon: icon('M4 13h6V4H4v9Zm0 7h6v-5H4v5Zm10 0h6V11h-6v9Zm0-16v5h6V4h-6Z'),
+    label: 'Today',
+    var: 'today',
+    icon: icon('M12 3v3M12 18v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M3 12h3M18 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z'),
   },
   {
     id: 'tasks',
@@ -35,31 +39,10 @@ export const SECTIONS: Section[] = [
     var: 'tasks',
     icon: icon('m5 12 4 4 10-10'),
   },
-  {
-    id: 'notes',
-    path: '/notes',
-    label: 'Notes',
-    var: 'notes',
-    icon: icon('M6 4h9l4 4v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Zm8 0v5h5'),
-  },
-  {
-    id: 'calendar',
-    path: '/calendar',
-    label: 'Calendar',
-    var: 'calendar',
-    icon: icon('M4 8h16M7 3v4M17 3v4M5 6h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Z'),
-  },
-  {
-    id: 'habits',
-    path: '/habits',
-    label: 'Habits',
-    var: 'habits',
-    icon: icon('M12 3v3M12 18v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M3 12h3M18 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z'),
-  },
 ]
 
 export function sectionByPath(pathname: string): Section {
   if (pathname === '/') return SECTIONS[0]
-  const hit = SECTIONS.find((s) => s.id !== 'dashboard' && pathname.startsWith(s.path))
+  const hit = SECTIONS.find((s) => s.id !== 'today' && pathname.startsWith(s.path))
   return hit ?? SECTIONS[0]
 }

@@ -1,20 +1,7 @@
 import type { TaskRow as TaskRowType, ListRow } from '@/lib/supabase'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-
-const PRIORITY_LABEL = ['', '!', '!!', '!!!']
-
-function formatDue(dueOn: string | null): { label: string; overdue: boolean } | null {
-  if (!dueOn) return null
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const due = new Date(dueOn + 'T00:00:00')
-  const diffDays = Math.round((due.getTime() - today.getTime()) / 86_400_000)
-  if (diffDays < 0) return { label: 'Overdue', overdue: true }
-  if (diffDays === 0) return { label: 'Today', overdue: false }
-  if (diffDays === 1) return { label: 'Tomorrow', overdue: false }
-  return { label: due.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }), overdue: false }
-}
+import { formatRelativeDate } from '@/lib/date'
 
 export function TaskRow({
   task,
@@ -30,8 +17,9 @@ export function TaskRow({
   onReopen: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id })
-  const due = formatDue(task.due_on)
+  const due = task.due_on ? formatRelativeDate(task.due_on) : null
   const done = task.status === 'done'
+  const starred = task.priority > 0
 
   return (
     <div
@@ -61,8 +49,8 @@ export function TaskRow({
           {task.title}
         </div>
         <div className="mt-0.5 flex items-center gap-2 text-xs" style={{ color: 'var(--text-faint)' }}>
-          {due && <span style={{ color: due.overdue && !done ? 'var(--danger)' : undefined }}>{due.label}</span>}
-          {task.priority > 0 && <span style={{ color: 'var(--tasks)' }}>{PRIORITY_LABEL[task.priority]}</span>}
+          {due && <span>{due.label}</span>}
+          {starred && !done && <span style={{ color: 'var(--tasks)' }} aria-label="Starred">★</span>}
           {list && <span>{list.name}</span>}
         </div>
       </button>

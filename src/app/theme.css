@@ -27,11 +27,11 @@
   --calendar-tint: #eaf1ff;
   --habits: #22a06b;
   --habits-tint: #e8f7f0;
-  --dashboard: #7c5cff;
-  --dashboard-tint: #f1edff;
+  --today: #7c5cff;
+  --today-tint: #f1edff;
 
-  --accent: var(--dashboard);
-  --accent-tint: var(--dashboard-tint);
+  --accent: var(--today);
+  --accent-tint: var(--today-tint);
 
   --radius: 14px;
   --dur: 160ms;
@@ -53,7 +53,7 @@
     --notes-tint: #2a2213;
     --calendar-tint: #131e2f;
     --habits-tint: #112a20;
-    --dashboard-tint: #1e1a2e;
+    --today-tint: #1e1a2e;
 
     color-scheme: dark;
   }

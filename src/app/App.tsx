@@ -8,11 +8,8 @@ import { supabaseConfigured } from '@/lib/supabase'
 import { SetupScreen } from './SetupScreen'
 import { LoginScreen } from './LoginScreen'
 import { Shell } from './Shell'
-import { Dashboard } from '@/features/dashboard/Dashboard'
+import { TodayPage } from '@/features/today/TodayPage'
 import { TasksPage } from '@/features/tasks/TasksPage'
-import { NotesPlaceholder } from '@/features/notes/NotesPlaceholder'
-import { CalendarPlaceholder } from '@/features/calendar/CalendarPlaceholder'
-import { HabitsPlaceholder } from '@/features/habits/HabitsPlaceholder'
 
 setupPersistence()
 
@@ -34,11 +31,8 @@ export function App() {
             <Gate>
               <Shell>
                 <Routes>
-                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/" element={<TodayPage />} />
                   <Route path="/tasks" element={<TasksPage />} />
-                  <Route path="/notes" element={<NotesPlaceholder />} />
-                  <Route path="/calendar" element={<CalendarPlaceholder />} />
-                  <Route path="/habits" element={<HabitsPlaceholder />} />
                 </Routes>
               </Shell>
             </Gate>

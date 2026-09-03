@@ -1,6 +1,8 @@
+import { useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase, type ListRow, type TaskRow } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
+import { todayISO } from '@/lib/date'
 import * as outbox from '@/lib/outbox'
 
 const TASKS_KEY = ['tasks'] as const
@@ -21,7 +23,7 @@ export function useLists() {
 
 export function useTasks() {
   const { session } = useAuth()
-  return useQuery({
+  const query = useQuery({
     queryKey: TASKS_KEY,
     enabled: !!session,
     queryFn: async (): Promise<TaskRow[]> => {
@@ -30,6 +32,32 @@ export function useTasks() {
       return data
     },
   })
+  useRolloverSync(query.data)
+  return query
+}
+
+/**
+ * A task that's still undone and past its due date silently counts a
+ * "rollover" once per calendar day, at most once — never shown to the user
+ * as a badge. TaskSheet uses the count to offer the "why am I avoiding
+ * this?" prompt after the second rollover. This runs client-side on load
+ * rather than as a server cron, since Orbit has no backend beyond Supabase.
+ */
+function useRolloverSync(tasks: TaskRow[] | undefined) {
+  const qc = useQueryClient()
+  useEffect(() => {
+    if (!tasks) return
+    const today = todayISO()
+    const due = tasks.filter(
+      (t) => t.status !== 'done' && !t.parent_id && t.due_on && t.due_on < today && t.last_rollover_on !== today,
+    )
+    if (due.length === 0) return
+    for (const t of due) {
+      const patch = { id: t.id, rollover_count: t.rollover_count + 1, last_rollover_on: today, updated_at: new Date().toISOString() }
+      qc.setQueryData<TaskRow[]>(TASKS_KEY, (prev) => (prev ?? []).map((x) => (x.id === t.id ? { ...x, ...patch } : x)))
+      void syncUpsert(patch)
+    }
+  }, [tasks, qc])
 }
 
 function nowIso() {
@@ -59,9 +87,10 @@ type NewTask = {
   title: string
   notes?: string | null
   listId?: string | null
-  priority?: 0 | 1 | 2 | 3
+  starred?: boolean
   dueOn?: string | null
   dueAt?: string | null
+  parentId?: string | null
 }
 
 export function useAddTask() {
@@ -77,13 +106,19 @@ export function useAddTask() {
         title: input.title,
         notes: input.notes ?? null,
         status: 'todo',
-        priority: input.priority ?? 0,
+        priority: input.starred ? 3 : 0,
         due_on: input.dueOn ?? null,
         due_at: input.dueAt ?? null,
         completed_at: null,
         sort_order: Date.now(),
         created_at: nowIso(),
         updated_at: nowIso(),
+        rollover_count: 0,
+        last_rollover_on: null,
+        first_step: null,
+        when_cue: null,
+        where_cue: null,
+        parent_id: input.parentId ?? null,
       }
       qc.setQueryData<TaskRow[]>(TASKS_KEY, (prev) => [...(prev ?? []), row])
       await syncUpsert(row)
@@ -136,6 +171,12 @@ export function useReorderTasks() {
       await Promise.all(ordered.map((t) => syncUpsert({ id: t.id, sort_order: t.sort_order, updated_at: nowIso() })))
     },
   })
+}
+
+/** Subtasks of one task, derived from the same cached list rather than a second query. */
+export function useSubtasks(taskId: string | null) {
+  const { data: tasks = [] } = useTasks()
+  return taskId ? tasks.filter((t) => t.parent_id === taskId).sort((a, b) => a.sort_order - b.sort_order) : []
 }
 
 export function useAddList() {

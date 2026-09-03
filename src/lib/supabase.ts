@@ -29,6 +29,7 @@ export type TaskRow = {
   title: string
   notes: string | null
   status: TaskStatus
+  /** Reused as a star: 0 = not starred, 3 = starred as today's most important. */
   priority: 0 | 1 | 2 | 3
   due_on: string | null // YYYY-MM-DD
   due_at: string | null // HH:MM:SS
@@ -36,4 +37,11 @@ export type TaskRow = {
   sort_order: number
   created_at: string
   updated_at: string
+  /** How many mornings this has been undone and past its due date — drives the "why am I avoiding this?" prompt, never shown as a red badge. */
+  rollover_count: number
+  last_rollover_on: string | null
+  first_step: string | null
+  when_cue: string | null
+  where_cue: string | null
+  parent_id: string | null
 }
