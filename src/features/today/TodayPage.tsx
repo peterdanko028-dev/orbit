@@ -39,13 +39,20 @@ export function TodayPage() {
 
   const listById = useMemo(() => new Map(lists.map((l) => [l.id, l])), [lists])
 
-  const { open, next, doneCount } = useMemo(() => {
+  const { open, next, nextStep, doneCount } = useMemo(() => {
     const today = todayISO()
     const todays = tasks.filter((t) => !t.parent_id && t.due_on && t.due_on <= today)
     const open = todays.filter((t) => t.status !== 'done').sort((a, b) => b.priority - a.priority || a.sort_order - b.sort_order)
     const doneCount = todays.filter((t) => t.status === 'done').length
     const next = open.find((t) => t.priority > 0) ?? open[0] ?? null
-    return { open, next, doneCount }
+    // A broken-down task is easier to start from its first open step than from
+    // its own name — "Draft the intro" beats "Q3 report".
+    const nextStep = next
+      ? (tasks
+          .filter((t) => t.parent_id === next.id && t.status !== 'done')
+          .sort((a, b) => a.sort_order - b.sort_order)[0] ?? null)
+      : null
+    return { open, next, nextStep, doneCount }
   }, [tasks])
 
   return (
@@ -66,10 +73,15 @@ export function TodayPage() {
             className="flex flex-col items-start gap-1 rounded-2xl border p-4 text-left"
             style={{ borderColor: 'var(--accent)', background: 'var(--accent-tint)' }}
           >
+            {nextStep && (
+              <span className="text-xs" style={{ color: 'var(--text-faint)' }}>
+                {next.title}
+              </span>
+            )}
             <span className="text-base font-medium" style={{ color: 'var(--text)' }}>
-              {next.title}
+              {nextStep ? nextStep.title : next.title}
             </span>
-            {next.first_step && (
+            {!nextStep && next.first_step && (
               <span className="text-xs" style={{ color: 'var(--text-dim)' }}>
                 First step: {next.first_step}
               </span>

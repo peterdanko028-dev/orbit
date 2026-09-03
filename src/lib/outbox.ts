@@ -9,7 +9,21 @@
 import { get, set } from 'idb-keyval'
 import { supabase } from './supabase'
 
+export type OutboxTable = 'tasks' | 'habits' | 'habit_logs'
+
 type OutboxOp =
+  | {
+      id: string
+      kind: 'upsert'
+      table: OutboxTable
+      payload: Record<string, unknown>
+      /** Comma-separated columns of the unique constraint to merge on, when it isn't the primary key. */
+      onConflict?: string
+      createdAt: number
+    }
+  | { id: string; kind: 'delete'; table: OutboxTable; match: Record<string, unknown>; createdAt: number }
+  // Ops queued by an older build, before the queue understood tables other
+  // than tasks. Kept readable so an upgrade mid-flight doesn't drop writes.
   | { id: string; kind: 'upsert-task'; table: 'tasks'; payload: Record<string, unknown>; createdAt: number }
   | { id: string; kind: 'delete-task'; table: 'tasks'; payload: { id: string }; createdAt: number }
 
@@ -35,11 +49,29 @@ export async function pendingCount(): Promise<number> {
   return (await readQueue()).length
 }
 
-export async function enqueue(op: Omit<OutboxOp, 'id' | 'createdAt'>): Promise<void> {
+/** Plain Omit over a union collapses it to the shared keys, so distribute it across the members. */
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
+
+export type NewOutboxOp = DistributiveOmit<OutboxOp, 'id' | 'createdAt'>
+
+export async function enqueue(op: NewOutboxOp): Promise<void> {
   const queue = await readQueue()
   queue.push({ ...op, id: crypto.randomUUID(), createdAt: Date.now() } as OutboxOp)
   await writeQueue(queue)
   void drain()
+}
+
+async function apply(op: OutboxOp): Promise<void> {
+  if (!supabase) throw new Error('no client')
+  if (op.kind === 'upsert' || op.kind === 'upsert-task') {
+    const onConflict = op.kind === 'upsert' ? op.onConflict : undefined
+    const { error } = await supabase.from(op.table).upsert(op.payload, onConflict ? { onConflict } : undefined)
+    if (error) throw error
+    return
+  }
+  const match = op.kind === 'delete' ? op.match : { id: op.payload.id }
+  const { error } = await supabase.from(op.table).delete().match(match)
+  if (error) throw error
 }
 
 let draining = false
@@ -53,13 +85,7 @@ export async function drain(): Promise<void> {
     while (queue.length > 0) {
       const op = queue[0]
       try {
-        if (op.kind === 'upsert-task') {
-          const { error } = await supabase.from('tasks').upsert(op.payload)
-          if (error) throw error
-        } else if (op.kind === 'delete-task') {
-          const { error } = await supabase.from('tasks').delete().eq('id', op.payload.id)
-          if (error) throw error
-        }
+        await apply(op)
         queue = queue.slice(1)
         await writeQueue(queue)
       } catch (err) {

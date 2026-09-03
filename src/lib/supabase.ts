@@ -45,3 +45,31 @@ export type TaskRow = {
   where_cue: string | null
   parent_id: string | null
 }
+
+export type Recurrence = 'daily' | 'days' | 'weekly'
+
+export type HabitRow = {
+  id: string
+  user_id: string
+  title: string
+  /** The anchor: "after morning coffee", "at my desk". Free text on purpose. */
+  cue: string | null
+  cue_time: string | null // HH:MM:SS
+  recurrence: Recurrence
+  /** Weekdays this is due on when recurrence is 'days'. 0 = Sunday … 6 = Saturday. */
+  days: number[]
+  /** How many days a week when recurrence is 'weekly' — which days is up to you. */
+  target_per_week: number
+  archived: boolean
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export type HabitLogRow = {
+  id: string
+  user_id: string
+  habit_id: string
+  done_on: string // YYYY-MM-DD
+  created_at: string
+}

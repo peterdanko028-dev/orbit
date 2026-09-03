@@ -24,3 +24,15 @@ export function formatRelativeDate(dueOn: string, now = new Date()): { label: st
   if (diffDays > 1 && diffDays <= 6) return { label: `In ${diffDays} days`, past: false }
   return { label: due.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }), past: false }
 }
+
+/** YYYY-MM-DD n days before (or after, if positive) the given day. */
+export function shiftISO(iso: string, days: number): string {
+  const d = new Date(iso + 'T00:00:00')
+  d.setDate(d.getDate() + days)
+  return todayISO(d)
+}
+
+/** 0 = Sunday … 6 = Saturday, for a YYYY-MM-DD string, in local time. */
+export function weekdayOf(iso: string): number {
+  return new Date(iso + 'T00:00:00').getDay()
+}

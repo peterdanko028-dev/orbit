@@ -20,10 +20,10 @@ const icon =
     </svg>
   )
 
-// Notes, Calendar and Habits stay out of the nav until they're actually built
-// — a tab that opens to "Coming soon" is exactly the unfinished-feeling
-// clutter the app is trying not to be. See their placeholder files, unused
-// for now, for what's still to build.
+// Notes and Calendar stay out of the nav until they're actually built — a tab
+// that opens to "Coming soon" is exactly the unfinished-feeling clutter the
+// app is trying not to be. See their placeholder files, unused for now, for
+// what's still to build.
 export const SECTIONS: Section[] = [
   {
     id: 'today',
@@ -38,6 +38,13 @@ export const SECTIONS: Section[] = [
     label: 'Tasks',
     var: 'tasks',
     icon: icon('m5 12 4 4 10-10'),
+  },
+  {
+    id: 'habits',
+    path: '/habits',
+    label: 'Habits',
+    var: 'habits',
+    icon: icon('M4 12a8 8 0 0 1 8-8c2.4 0 4.6 1 6.2 2.7M20 12a8 8 0 0 1-8 8c-2.4 0-4.6-1-6.2-2.7M18.5 3.2v3.5H15M5.5 20.8v-3.5H9'),
   },
 ]
 

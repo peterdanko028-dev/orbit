@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import type React from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router'
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -9,7 +10,12 @@ import { SetupScreen } from './SetupScreen'
 import { LoginScreen } from './LoginScreen'
 import { Shell } from './Shell'
 import { TodayPage } from '@/features/today/TodayPage'
-import { TasksPage } from '@/features/tasks/TasksPage'
+
+// Today is the landing screen and ships in the main bundle; the other sections
+// are split out so a cold open on a phone doesn't parse code for tabs the user
+// hasn't visited yet.
+const TasksPage = lazy(() => import('@/features/tasks/TasksPage').then((m) => ({ default: m.TasksPage })))
+const HabitsPage = lazy(() => import('@/features/habits/HabitsPage').then((m) => ({ default: m.HabitsPage })))
 
 setupPersistence()
 
@@ -30,10 +36,13 @@ export function App() {
           <BrowserRouter>
             <Gate>
               <Shell>
-                <Routes>
-                  <Route path="/" element={<TodayPage />} />
-                  <Route path="/tasks" element={<TasksPage />} />
-                </Routes>
+                <Suspense fallback={null}>
+                  <Routes>
+                    <Route path="/" element={<TodayPage />} />
+                    <Route path="/tasks" element={<TasksPage />} />
+                    <Route path="/habits" element={<HabitsPage />} />
+                  </Routes>
+                </Suspense>
               </Shell>
             </Gate>
           </BrowserRouter>

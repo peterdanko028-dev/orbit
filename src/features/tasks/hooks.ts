@@ -1,9 +1,9 @@
 import { useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase, type ListRow, type TaskRow } from '@/lib/supabase'
+import { syncDelete, syncUpsert } from '@/lib/sync'
 import { useAuth } from '@/lib/auth'
 import { todayISO } from '@/lib/date'
-import * as outbox from '@/lib/outbox'
 
 const TASKS_KEY = ['tasks'] as const
 const LISTS_KEY = ['lists'] as const
@@ -55,32 +55,13 @@ function useRolloverSync(tasks: TaskRow[] | undefined) {
     for (const t of due) {
       const patch = { id: t.id, rollover_count: t.rollover_count + 1, last_rollover_on: today, updated_at: new Date().toISOString() }
       qc.setQueryData<TaskRow[]>(TASKS_KEY, (prev) => (prev ?? []).map((x) => (x.id === t.id ? { ...x, ...patch } : x)))
-      void syncUpsert(patch)
+      void syncUpsert('tasks', patch)
     }
   }, [tasks, qc])
 }
 
 function nowIso() {
   return new Date().toISOString()
-}
-
-/** Writes optimistically to the cache, then to Supabase — falling back to the offline outbox on failure. */
-async function syncUpsert(payload: Record<string, unknown>) {
-  if (!navigator.onLine || !supabase) {
-    await outbox.enqueue({ kind: 'upsert-task', table: 'tasks', payload })
-    return
-  }
-  const { error } = await supabase.from('tasks').upsert(payload)
-  if (error) await outbox.enqueue({ kind: 'upsert-task', table: 'tasks', payload })
-}
-
-async function syncDelete(id: string) {
-  if (!navigator.onLine || !supabase) {
-    await outbox.enqueue({ kind: 'delete-task', table: 'tasks', payload: { id } })
-    return
-  }
-  const { error } = await supabase.from('tasks').delete().eq('id', id)
-  if (error) await outbox.enqueue({ kind: 'delete-task', table: 'tasks', payload: { id } })
 }
 
 type NewTask = {
@@ -121,7 +102,7 @@ export function useAddTask() {
         parent_id: input.parentId ?? null,
       }
       qc.setQueryData<TaskRow[]>(TASKS_KEY, (prev) => [...(prev ?? []), row])
-      await syncUpsert(row)
+      await syncUpsert('tasks', row)
       return row
     },
   })
@@ -134,7 +115,7 @@ export function useUpdateTask() {
       qc.setQueryData<TaskRow[]>(TASKS_KEY, (prev) =>
         (prev ?? []).map((t) => (t.id === patch.id ? { ...t, ...patch, updated_at: nowIso() } : t)),
       )
-      await syncUpsert({ ...patch, updated_at: nowIso() })
+      await syncUpsert('tasks', { ...patch, updated_at: nowIso() })
     },
   })
 }
@@ -154,7 +135,7 @@ export function useDeleteTask() {
   return useMutation({
     mutationFn: async (id: string) => {
       qc.setQueryData<TaskRow[]>(TASKS_KEY, (prev) => (prev ?? []).filter((t) => t.id !== id))
-      await syncDelete(id)
+      await syncDelete('tasks', { id })
     },
   })
 }
@@ -168,7 +149,7 @@ export function useReorderTasks() {
         const byId = new Map(ordered.map((t) => [t.id, t]))
         return prev.map((t) => byId.get(t.id) ?? t)
       })
-      await Promise.all(ordered.map((t) => syncUpsert({ id: t.id, sort_order: t.sort_order, updated_at: nowIso() })))
+      await Promise.all(ordered.map((t) => syncUpsert('tasks', { id: t.id, sort_order: t.sort_order, updated_at: nowIso() })))
     },
   })
 }
@@ -193,8 +174,8 @@ export function useAddList() {
         created_at: nowIso(),
       }
       qc.setQueryData<ListRow[]>(LISTS_KEY, (prev) => [...(prev ?? []), row])
-      // Lists are created rarely and the outbox only knows the tasks table, so
-      // this one operation needs a live connection rather than queueing.
+      // Lists are created rarely and the outbox doesn't carry the lists table,
+      // so this one operation needs a live connection rather than queueing.
       if (!navigator.onLine || !supabase) {
         qc.setQueryData<ListRow[]>(LISTS_KEY, (prev) => (prev ?? []).filter((l) => l.id !== row.id))
         throw new Error('Creating a list needs a connection — try again once you are back online.')
