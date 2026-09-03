@@ -100,6 +100,9 @@ export function useAddTask() {
         when_cue: null,
         where_cue: null,
         parent_id: input.parentId ?? null,
+        scheduled_on: null,
+        scheduled_at: null,
+        duration_min: null,
       }
       qc.setQueryData<TaskRow[]>(TASKS_KEY, (prev) => [...(prev ?? []), row])
       await syncUpsert('tasks', row)
@@ -152,6 +155,17 @@ export function useReorderTasks() {
       await Promise.all(ordered.map((t) => syncUpsert('tasks', { id: t.id, sort_order: t.sort_order, updated_at: nowIso() })))
     },
   })
+}
+
+/** Places a task on the timeline at a date/time, or clears that plan — separate from due_on, the deadline. */
+export function useScheduleTask() {
+  const update = useUpdateTask()
+  return {
+    schedule: (task: TaskRow, plan: { on: string; at: string; durationMin: number }) =>
+      update.mutate({ id: task.id, scheduled_on: plan.on, scheduled_at: plan.at, duration_min: plan.durationMin }),
+    unschedule: (task: TaskRow) =>
+      update.mutate({ id: task.id, scheduled_on: null, scheduled_at: null, duration_min: null }),
+  }
 }
 
 /** Subtasks of one task, derived from the same cached list rather than a second query. */

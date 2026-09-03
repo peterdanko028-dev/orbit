@@ -9,7 +9,7 @@
 import { get, set } from 'idb-keyval'
 import { supabase } from './supabase'
 
-export type OutboxTable = 'tasks' | 'habits' | 'habit_logs'
+export type OutboxTable = 'tasks' | 'habits' | 'habit_logs' | 'blocks' | 'block_skips'
 
 type OutboxOp =
   | {

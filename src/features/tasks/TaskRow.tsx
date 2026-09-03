@@ -6,12 +6,15 @@ import { formatRelativeDate } from '@/lib/date'
 export function TaskRow({
   task,
   list,
+  progress,
   onOpen,
   onComplete,
   onReopen,
 }: {
   task: TaskRowType
   list?: ListRow
+  /** Present only for a project (a top-level task with subtasks): done/total, shown as a thin bar. */
+  progress?: { done: number; total: number }
   onOpen: () => void
   onComplete: () => void
   onReopen: () => void
@@ -52,7 +55,20 @@ export function TaskRow({
           {due && <span>{due.label}</span>}
           {starred && !done && <span style={{ color: 'var(--tasks)' }} aria-label="Starred">★</span>}
           {list && <span>{list.name}</span>}
+          {progress && (
+            <span>
+              {progress.done}/{progress.total}
+            </span>
+          )}
         </div>
+        {progress && progress.total > 0 && (
+          <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full" style={{ background: 'var(--line)' }}>
+            <div
+              className="h-full rounded-full"
+              style={{ width: `${(progress.done / progress.total) * 100}%`, background: 'var(--accent)' }}
+            />
+          </div>
+        )}
       </button>
 
       <button

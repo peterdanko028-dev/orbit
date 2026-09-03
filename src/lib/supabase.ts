@@ -44,9 +44,15 @@ export type TaskRow = {
   when_cue: string | null
   where_cue: string | null
   parent_id: string | null
+  /** When you actually plan to do it — separate from due_on, the deadline. Set together or not at all. */
+  scheduled_on: string | null // YYYY-MM-DD
+  scheduled_at: string | null // HH:MM:SS
+  duration_min: number | null
 }
 
 export type Recurrence = 'daily' | 'days' | 'weekly'
+
+export type AnchorPosition = 'before' | 'after'
 
 export type HabitRow = {
   id: string
@@ -64,6 +70,9 @@ export type HabitRow = {
   sort_order: number
   created_at: string
   updated_at: string
+  /** A block this habit rides alongside — "stretch" right after "Training". Null = untethered. */
+  anchor_block_id: string | null
+  anchor_position: AnchorPosition | null
 }
 
 export type HabitLogRow = {
@@ -71,5 +80,34 @@ export type HabitLogRow = {
   user_id: string
   habit_id: string
   done_on: string // YYYY-MM-DD
+  created_at: string
+}
+
+export type BlockKind = 'school' | 'training' | 'other'
+
+export type BlockRow = {
+  id: string
+  user_id: string
+  title: string
+  kind: BlockKind
+  location: string | null
+  notes: string | null
+  start_time: string // HH:MM:SS
+  end_time: string // HH:MM:SS
+  /** Weekdays this repeats on. 0 = Sunday … 6 = Saturday. Empty = a one-off on starts_on. */
+  days: number[]
+  starts_on: string // YYYY-MM-DD
+  /** null = open-ended (until archived). */
+  ends_on: string | null
+  archived: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type BlockSkipRow = {
+  id: string
+  user_id: string
+  block_id: string
+  on_date: string // YYYY-MM-DD
   created_at: string
 }

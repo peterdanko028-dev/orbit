@@ -15,11 +15,14 @@ const STRIP_DAYS = 12
 export function HabitCard({
   habit,
   doneOn,
+  anchorLabel,
   onToggle,
   onOpen,
 }: {
   habit: HabitRow
   doneOn: Set<string>
+  /** "before Training" / "after Math" — precomputed by the page from its blocks list. */
+  anchorLabel?: string
   onToggle: () => void
   onOpen: () => void
 }) {
@@ -60,7 +63,7 @@ export function HabitCard({
           {habit.title}
         </div>
         <div className="mt-0.5 truncate text-xs" style={{ color: 'var(--text-dim)' }}>
-          {[habit.cue, habit.cue_time?.slice(0, 5), scheduleLabel(habit), dueToday ? null : 'Rest day']
+          {[habit.cue, anchorLabel ?? habit.cue_time?.slice(0, 5), scheduleLabel(habit), dueToday ? null : 'Rest day']
             .filter(Boolean)
             .join(' · ')}
         </div>

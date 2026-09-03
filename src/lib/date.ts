@@ -36,3 +36,48 @@ export function shiftISO(iso: string, days: number): string {
 export function weekdayOf(iso: string): number {
   return new Date(iso + 'T00:00:00').getDay()
 }
+
+/** 'HH:MM:SS' or 'HH:MM' → minutes since local midnight. */
+export function toMinutes(hhmmss: string): number {
+  const [h, m] = hhmmss.split(':')
+  return Number(h) * 60 + Number(m)
+}
+
+/** Minutes since local midnight → 'HH:MM:00', for writing back to a `time` column. */
+export function fromMinutes(min: number): string {
+  const h = String(Math.floor(min / 60) % 24).padStart(2, '0')
+  const m = String(min % 60).padStart(2, '0')
+  return `${h}:${m}:00`
+}
+
+/** Minutes since local midnight, in the reader's locale time format — "8:30 AM" / "08:30". */
+export function formatTime(min: number, now = new Date()): string {
+  const d = new Date(now)
+  d.setHours(Math.floor(min / 60), min % 60, 0, 0)
+  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+}
+
+/** Minutes since local midnight, right now (or for a given Date). */
+export function nowMinutes(d = new Date()): number {
+  return d.getHours() * 60 + d.getMinutes()
+}
+
+/** The Monday (YYYY-MM-DD) of the week containing this date, in local time. */
+export function mondayOf(iso: string): string {
+  const dow = weekdayOf(iso) // 0 = Sunday … 6 = Saturday
+  const backToMonday = dow === 0 ? -6 : 1 - dow
+  return shiftISO(iso, backToMonday)
+}
+
+/** The 7 local dates Monday through Sunday for the week starting at `mondayIso`. */
+export function weekDates(mondayIso: string): string[] {
+  return Array.from({ length: 7 }, (_, i) => shiftISO(mondayIso, i))
+}
+
+/** A span of minutes as "35 min" / "2 h" / "2 h 30". */
+export function formatDurationMin(min: number): string {
+  if (min < 60) return `${min} min`
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  return m === 0 ? `${h} h` : `${h} h ${m}`
+}

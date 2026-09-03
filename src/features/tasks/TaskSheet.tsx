@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Sheet } from '@/components/Sheet'
 import { Button } from '@/components/Button'
 import { Input } from '@/components/Input'
+import { formatRelativeDate } from '@/lib/date'
 import type { ListRow, TaskRow } from '@/lib/supabase'
 import { useAddTask, useCompleteTask, useDeleteTask, useSubtasks, useUpdateTask } from './hooks'
 import { useToast } from '@/components/Toast'
@@ -101,6 +102,7 @@ export function TaskSheet({
   const update = useUpdateTask()
   const del = useDeleteTask()
   const { show } = useToast()
+  const subtasksForProgress = useSubtasks(task?.id ?? null)
   const [title, setTitle] = useState('')
   const [notes, setNotes] = useState('')
   const [dueOn, setDueOn] = useState('')
@@ -110,6 +112,9 @@ export function TaskSheet({
   const [whenCue, setWhenCue] = useState('')
   const [whereCue, setWhereCue] = useState('')
   const [detailsOpen, setDetailsOpen] = useState(false)
+  const [scheduledOn, setScheduledOn] = useState('')
+  const [scheduledAt, setScheduledAt] = useState('')
+  const [durationMin, setDurationMin] = useState(30)
 
   useEffect(() => {
     if (!task) return
@@ -122,11 +127,17 @@ export function TaskSheet({
     setWhenCue(task.when_cue ?? '')
     setWhereCue(task.where_cue ?? '')
     setDetailsOpen(Boolean(task.first_step || task.when_cue || task.where_cue))
+    setScheduledOn(task.scheduled_on ?? '')
+    setScheduledAt(task.scheduled_at?.slice(0, 5) ?? '')
+    setDurationMin(task.duration_min ?? 30)
   }, [task])
 
   if (!task) return null
 
   const save = () => {
+    // A plan needs both a date and a time to mean anything — a date alone
+    // isn't a slot on the clock, so it's cleared rather than half-saved.
+    const hasPlan = Boolean(scheduledOn && scheduledAt)
     update.mutate({
       id: task.id,
       title: title.trim() || task.title,
@@ -137,8 +148,16 @@ export function TaskSheet({
       first_step: firstStep.trim() || null,
       when_cue: whenCue.trim() || null,
       where_cue: whereCue.trim() || null,
+      scheduled_on: hasPlan ? scheduledOn : null,
+      scheduled_at: hasPlan ? `${scheduledAt}:00` : null,
+      duration_min: hasPlan ? durationMin : null,
     })
     onClose()
+  }
+
+  const clearPlan = () => {
+    setScheduledOn('')
+    setScheduledAt('')
   }
 
   const clear = () => {
@@ -167,6 +186,29 @@ export function TaskSheet({
       }
     >
       <div className="flex flex-col gap-4">
+        {subtasksForProgress.length > 0 &&
+          (() => {
+            const done = subtasksForProgress.filter((s) => s.status === 'done').length
+            const total = subtasksForProgress.length
+            const due = task.due_on ? formatRelativeDate(task.due_on) : null
+            return (
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between text-xs" style={{ color: 'var(--text-dim)' }}>
+                  <span>
+                    {done} of {total} steps done
+                  </span>
+                  {due && <span>Due {due.label}</span>}
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full" style={{ background: 'var(--line)' }}>
+                  <div
+                    className="h-full rounded-full"
+                    style={{ width: `${(done / total) * 100}%`, background: 'var(--accent)' }}
+                  />
+                </div>
+              </div>
+            )
+          })()}
+
         {task.rollover_count >= 2 && <AvoidancePrompt onDrop={clear} />}
 
         <label className="flex flex-col gap-1.5 text-xs font-medium" style={{ color: 'var(--text-dim)' }}>
@@ -220,6 +262,44 @@ export function TaskSheet({
               ))}
             </select>
           </label>
+        </div>
+
+        <div className="flex flex-col gap-2 rounded-xl border p-3" style={{ borderColor: 'var(--line)' }}>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium" style={{ color: 'var(--text-dim)' }}>
+              Planned — when you'll actually do it
+            </span>
+            {scheduledOn && (
+              <button type="button" onClick={clearPlan} className="text-xs font-medium" style={{ color: 'var(--accent)' }}>
+                Clear plan
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-[1fr_1fr_auto] gap-3">
+            <label className="flex flex-col gap-1.5 text-xs" style={{ color: 'var(--text-dim)' }}>
+              Date
+              <Input type="date" value={scheduledOn} onChange={(e) => setScheduledOn(e.target.value)} />
+            </label>
+            <label className="flex flex-col gap-1.5 text-xs" style={{ color: 'var(--text-dim)' }}>
+              Time
+              <Input type="time" step={300} value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+            </label>
+            <label className="flex flex-col gap-1.5 text-xs" style={{ color: 'var(--text-dim)' }}>
+              Mins
+              <select
+                value={durationMin}
+                onChange={(e) => setDurationMin(Number(e.target.value))}
+                className="rounded-xl border bg-transparent px-2 py-2.5 text-sm outline-none"
+                style={{ borderColor: 'var(--line)', color: 'var(--text)' }}
+              >
+                {[15, 30, 45, 60, 90, 120].map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
 
         {!detailsOpen ? (

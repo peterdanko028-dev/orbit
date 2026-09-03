@@ -16,6 +16,7 @@ import { TodayPage } from '@/features/today/TodayPage'
 // hasn't visited yet.
 const TasksPage = lazy(() => import('@/features/tasks/TasksPage').then((m) => ({ default: m.TasksPage })))
 const HabitsPage = lazy(() => import('@/features/habits/HabitsPage').then((m) => ({ default: m.HabitsPage })))
+const SchedulePage = lazy(() => import('@/features/schedule/SchedulePage').then((m) => ({ default: m.SchedulePage })))
 
 setupPersistence()
 
@@ -41,6 +42,7 @@ export function App() {
                     <Route path="/" element={<TodayPage />} />
                     <Route path="/tasks" element={<TasksPage />} />
                     <Route path="/habits" element={<HabitsPage />} />
+                    <Route path="/schedule" element={<SchedulePage />} />
                   </Routes>
                 </Suspense>
               </Shell>

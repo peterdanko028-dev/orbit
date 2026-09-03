@@ -1,24 +1,52 @@
 import { useEffect, useMemo, useState } from 'react'
-import { todayISO } from '@/lib/date'
+import { nowMinutes, shiftISO, todayISO } from '@/lib/date'
+import { useNow } from '@/lib/useNow'
 import { QuickAdd } from '@/features/tasks/QuickAdd'
-import { TaskRow } from '@/features/tasks/TaskRow'
 import { TaskSheet } from '@/features/tasks/TaskSheet'
 import { useCompleteTask, useLists, useTasks } from '@/features/tasks/hooks'
+import { useDoneByHabit, useHabits, useToggleCheckIn } from '@/features/habits/hooks'
+import { useBlocks, useSkipsByBlock } from '@/features/schedule/hooks'
 import { useToast } from '@/components/Toast'
-import type { TaskRow as TaskRowType } from '@/lib/supabase'
+import type { HabitRow, TaskRow as TaskRowType } from '@/lib/supabase'
+import { buildDay, type TimelineItem } from './dayPlan'
+import { NowNextCard } from './NowNextCard'
+import { Timeline } from './Timeline'
+import { AnytimeStrip } from './AnytimeStrip'
+import { PickTaskSheet, type GapDraft } from './PickTaskSheet'
+import { PickGapSheet } from './PickGapSheet'
+import { BlockActionSheet } from './BlockActionSheet'
+
+/** How far back day navigation goes — habit check-ins and block skips are only ever fetched for the last 56 days. */
+const MAX_DAYS_BACK = 56
+
+function formatDayLabel(date: string, today: string): string {
+  if (date === today) return 'Today'
+  return new Date(date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+}
 
 /**
- * Home screen. Shows today's open tasks (including anything rolled over from
- * a past date — worded plainly, never a red overdue pile) plus the one
- * starred task highlighted as "next". The rest of the backlog stays on the
- * Tasks page; an empty Today reads as success, not a void to fill.
+ * Home screen. One day, time-ordered: your fixed blocks (school, training),
+ * tasks and habits placed on the clock, the gaps between them, and — below —
+ * everything else that's due but not yet placed. Day arrows move through
+ * history and the near future; "Today" always jumps back.
  */
 export function TodayPage() {
   const { data: tasks = [] } = useTasks()
   const { data: lists = [] } = useLists()
+  const { data: habits = [] } = useHabits()
+  const doneByHabit = useDoneByHabit()
+  const { data: blocks = [] } = useBlocks()
+  const skipsByBlock = useSkipsByBlock()
   const { complete, reopen } = useCompleteTask()
+  const toggleHabit = useToggleCheckIn()
   const { show } = useToast()
+
   const [editing, setEditing] = useState<TaskRowType | null>(null)
+  const [gapDraft, setGapDraft] = useState<GapDraft | null>(null)
+  const [planningTask, setPlanningTask] = useState<TaskRowType | null>(null)
+  const [blockSheetTarget, setBlockSheetTarget] = useState<Parameters<typeof BlockActionSheet>[0]['target']>(null)
+
+  const [date, setDate] = useState(() => todayISO())
 
   // The Android share sheet lands here as /?title=...&text=...&url=... (see
   // the manifest's share_target), and the "Add task" home-screen shortcut
@@ -37,92 +65,107 @@ export function TodayPage() {
     if (window.location.search) window.history.replaceState(null, '', window.location.pathname)
   }, [])
 
-  const listById = useMemo(() => new Map(lists.map((l) => [l.id, l])), [lists])
+  const now = useNow()
+  const today = todayISO()
+  const nowMin = date === today ? nowMinutes(now) : null
+  const earliestDate = shiftISO(today, -MAX_DAYS_BACK)
 
-  const { open, next, nextStep, doneCount } = useMemo(() => {
-    const today = todayISO()
-    const todays = tasks.filter((t) => !t.parent_id && t.due_on && t.due_on <= today)
-    const open = todays.filter((t) => t.status !== 'done').sort((a, b) => b.priority - a.priority || a.sort_order - b.sort_order)
-    const doneCount = todays.filter((t) => t.status === 'done').length
-    const next = open.find((t) => t.priority > 0) ?? open[0] ?? null
-    // A broken-down task is easier to start from its first open step than from
-    // its own name — "Draft the intro" beats "Q3 report".
-    const nextStep = next
-      ? (tasks
-          .filter((t) => t.parent_id === next.id && t.status !== 'done')
-          .sort((a, b) => a.sort_order - b.sort_order)[0] ?? null)
-      : null
-    return { open, next, nextStep, doneCount }
-  }, [tasks])
+  const plan = useMemo(
+    () => buildDay({ date, today, nowMin, blocks, skipsByBlock, habits, tasks }),
+    [date, today, nowMin, blocks, skipsByBlock, habits, tasks],
+  )
+
+  const checkedHabitIds = useMemo(() => {
+    const set = new Set<string>()
+    for (const h of habits) if (doneByHabit.get(h.id)?.has(date)) set.add(h.id)
+    return set
+  }, [habits, doneByHabit, date])
+
+  const gaps = useMemo(() => plan.items.filter((it): it is TimelineItem & { type: 'gap' } => it.type === 'gap'), [plan.items])
+
+  const onToggleHabit = (habit: HabitRow) => toggleHabit.mutate({ habitId: habit.id, dateISO: date })
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-6 sm:px-6">
-      <h1 className="text-2xl font-semibold" style={{ color: 'var(--text)' }}>
-        Today
-      </h1>
-
-      <QuickAdd initialValue={draft} autoFocus={shouldFocus} />
-
-      {next && (
-        <section className="flex flex-col gap-2">
-          <h2 className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-faint)' }}>
-            Next
-          </h2>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => setEditing(next)}
-            className="flex flex-col items-start gap-1 rounded-2xl border p-4 text-left"
-            style={{ borderColor: 'var(--accent)', background: 'var(--accent-tint)' }}
+            type="button"
+            onClick={() => setDate((d) => shiftISO(d, -1))}
+            disabled={date <= earliestDate}
+            aria-label="Previous day"
+            className="rounded-full px-2 py-1 text-lg disabled:opacity-30"
+            style={{ color: 'var(--text-dim)' }}
           >
-            {nextStep && (
-              <span className="text-xs" style={{ color: 'var(--text-faint)' }}>
-                {next.title}
-              </span>
-            )}
-            <span className="text-base font-medium" style={{ color: 'var(--text)' }}>
-              {nextStep ? nextStep.title : next.title}
-            </span>
-            {!nextStep && next.first_step && (
-              <span className="text-xs" style={{ color: 'var(--text-dim)' }}>
-                First step: {next.first_step}
-              </span>
-            )}
+            ‹
           </button>
-        </section>
-      )}
+          <h1 className="text-2xl font-semibold" style={{ color: 'var(--text)' }}>
+            {formatDayLabel(date, today)}
+          </h1>
+          <button
+            type="button"
+            onClick={() => setDate((d) => shiftISO(d, 1))}
+            aria-label="Next day"
+            className="rounded-full px-2 py-1 text-lg"
+            style={{ color: 'var(--text-dim)' }}
+          >
+            ›
+          </button>
+        </div>
+        {date !== today && (
+          <button
+            type="button"
+            onClick={() => setDate(today)}
+            className="rounded-full px-3 py-1.5 text-xs"
+            style={{ background: 'var(--accent-tint)', color: 'var(--accent)' }}
+          >
+            Today
+          </button>
+        )}
+      </div>
 
-      <section className="flex flex-col gap-2">
-        <h2 className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-faint)' }}>
-          {open.length > 0 ? `Today · ${open.length}` : 'Today'}
-        </h2>
-        {open.length === 0 ? (
-          <p className="py-6 text-center text-sm" style={{ color: 'var(--text-faint)' }}>
-            {doneCount > 0 ? 'Nothing left for today — nice.' : 'Nothing planned for today yet.'}
-          </p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {open.map((task) => (
-              <TaskRow
-                key={task.id}
-                task={task}
-                list={task.list_id ? listById.get(task.list_id) : undefined}
-                onOpen={() => setEditing(task)}
-                onComplete={() => {
-                  complete(task)
-                  show({ message: 'Task completed', actionLabel: 'Undo', onAction: () => reopen(task) })
-                }}
-                onReopen={() => reopen(task)}
-              />
-            ))}
-          </div>
-        )}
-        {doneCount > 0 && (
-          <p className="text-xs" style={{ color: 'var(--text-faint)' }}>
-            {doneCount} done today
-          </p>
-        )}
-      </section>
+      {date === today && <QuickAdd initialValue={draft} autoFocus={shouldFocus} />}
+
+      <NowNextCard date={date} today={today} plan={plan} tasks={tasks} onOpenTask={setEditing} />
+
+      <Timeline
+        items={plan.items}
+        nowMin={nowMin}
+        lists={lists}
+        checkedHabitIds={checkedHabitIds}
+        onOpenTask={setEditing}
+        onCompleteTask={(task) => {
+          complete(task)
+          show({ message: 'Task completed', actionLabel: 'Undo', onAction: () => reopen(task) })
+        }}
+        onReopenTask={reopen}
+        onOpenBlock={(item) =>
+          setBlockSheetTarget({ block: item.inst.block, date, start: item.start, end: item.end, skipped: item.inst.skipped })
+        }
+        onToggleHabit={onToggleHabit}
+        onPickGap={(gap) => setGapDraft({ date, start: gap.start, end: gap.end })}
+      />
+
+      <AnytimeStrip
+        tasks={plan.anytimeTasks}
+        habits={plan.anytimeHabits}
+        lists={lists}
+        doneCount={plan.doneCount}
+        checkedHabitIds={checkedHabitIds}
+        onOpenTask={setEditing}
+        onCompleteTask={(task) => {
+          complete(task)
+          show({ message: 'Task completed', actionLabel: 'Undo', onAction: () => reopen(task) })
+        }}
+        onReopenTask={reopen}
+        onPlanTask={setPlanningTask}
+        onToggleHabit={onToggleHabit}
+      />
 
       <TaskSheet task={editing} lists={lists} onClose={() => setEditing(null)} />
+      <PickTaskSheet gap={gapDraft} tasks={tasks} lists={lists} onClose={() => setGapDraft(null)} />
+      <PickGapSheet task={planningTask} date={date} gaps={gaps} onClose={() => setPlanningTask(null)} />
+      <BlockActionSheet target={blockSheetTarget} onClose={() => setBlockSheetTarget(null)} />
     </div>
   )
 }

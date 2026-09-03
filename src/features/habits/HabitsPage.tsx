@@ -3,6 +3,7 @@ import { Input } from '@/components/Input'
 import { Button } from '@/components/Button'
 import { todayISO } from '@/lib/date'
 import type { HabitRow } from '@/lib/supabase'
+import { useBlocks } from '@/features/schedule/hooks'
 import { useAddHabit, useDoneByHabit, useHabits, useToggleCheckIn } from './hooks'
 import { isDueOn } from './consistency'
 import { HabitCard } from './HabitCard'
@@ -19,6 +20,8 @@ const NO_LOGS: Set<string> = new Set()
 export function HabitsPage() {
   const { data: habits = [], isLoading } = useHabits()
   const doneByHabit = useDoneByHabit()
+  const { data: blocks = [] } = useBlocks()
+  const blockById = useMemo(() => new Map(blocks.map((b) => [b.id, b])), [blocks])
   const add = useAddHabit()
   const toggle = useToggleCheckIn()
   const [editing, setEditing] = useState<HabitRow | null>(null)
@@ -88,15 +91,22 @@ export function HabitsPage() {
         </p>
       ) : (
         <div className="flex flex-col gap-2">
-          {ordered.map((habit) => (
-            <HabitCard
-              key={habit.id}
-              habit={habit}
-              doneOn={doneByHabit.get(habit.id) ?? NO_LOGS}
-              onToggle={() => toggle.mutate({ habitId: habit.id, dateISO: today })}
-              onOpen={() => setEditing(habit)}
-            />
-          ))}
+          {ordered.map((habit) => {
+            const anchorBlock = habit.anchor_block_id ? blockById.get(habit.anchor_block_id) : undefined
+            const anchorLabel = anchorBlock
+              ? `${habit.anchor_position ?? 'after'} ${anchorBlock.title}${anchorBlock.archived ? ' (archived)' : ''}`
+              : undefined
+            return (
+              <HabitCard
+                key={habit.id}
+                habit={habit}
+                doneOn={doneByHabit.get(habit.id) ?? NO_LOGS}
+                anchorLabel={anchorLabel}
+                onToggle={() => toggle.mutate({ habitId: habit.id, dateISO: today })}
+                onOpen={() => setEditing(habit)}
+              />
+            )
+          })}
         </div>
       )}
 

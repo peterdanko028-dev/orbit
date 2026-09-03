@@ -86,6 +86,8 @@ export function useAddHabit() {
         sort_order: Date.now(),
         created_at: nowIso(),
         updated_at: nowIso(),
+        anchor_block_id: null,
+        anchor_position: null,
       }
       qc.setQueryData<HabitRow[]>(HABITS_KEY, (prev) => [...(prev ?? []), row])
       await syncUpsert('habits', row)

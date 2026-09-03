@@ -7,19 +7,25 @@ import { QuickAdd } from './QuickAdd'
 import { TaskRow } from './TaskRow'
 import { TaskSheet } from './TaskSheet'
 import { useCompleteTask, useLists, useReorderTasks, useTasks } from './hooks'
+import { projectStats } from './projects'
 import { useToast } from '@/components/Toast'
 
 // No "Overdue" group: a task that's still undone just lives in Today, worded
 // with its actual date rather than flagged red. See TaskRow/formatRelativeDate.
-type GroupKey = 'today' | 'upcoming' | 'someday'
+// Projects (a top-level task with subtasks) get their own group ahead of the
+// date groups — a deadline with a progress bar reads differently from a
+// plain to-do, so it shouldn't get lost among them.
+type GroupKey = 'projects' | 'today' | 'upcoming' | 'someday'
 const GROUP_LABEL: Record<GroupKey, string> = {
+  projects: 'Projects',
   today: 'Today',
   upcoming: 'Upcoming',
   someday: 'Someday',
 }
 
-function groupOf(task: TaskRowType): GroupKey | 'done' {
+function groupOf(task: TaskRowType, isProject: boolean): GroupKey | 'done' {
   if (task.status === 'done') return 'done'
+  if (isProject) return 'projects'
   if (!task.due_on) return 'someday'
   return task.due_on <= todayISO() ? 'today' : 'upcoming'
 }
@@ -32,12 +38,18 @@ export function TasksPage() {
   const { show } = useToast()
   const [editing, setEditing] = useState<TaskRowType | null>(null)
   const [listFilter, setListFilter] = useState<string>('all')
-  const [expanded, setExpanded] = useState<Record<GroupKey, boolean>>({ today: true, upcoming: false, someday: false })
+  const [expanded, setExpanded] = useState<Record<GroupKey, boolean>>({
+    projects: true,
+    today: true,
+    upcoming: false,
+    someday: false,
+  })
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
   // Subtasks live inside their parent's sheet, not as their own row here.
   const tasks = useMemo(() => allTasks.filter((t) => !t.parent_id), [allTasks])
+  const stats = useMemo(() => projectStats(allTasks), [allTasks])
 
   const filtered = useMemo(
     () => (listFilter === 'all' ? tasks : tasks.filter((t) => t.list_id === listFilter)),
@@ -45,20 +57,23 @@ export function TasksPage() {
   )
 
   const { groups, doneToday } = useMemo(() => {
-    const g: Record<GroupKey, TaskRowType[]> = { today: [], upcoming: [], someday: [] }
+    const g: Record<GroupKey, TaskRowType[]> = { projects: [], today: [], upcoming: [], someday: [] }
     let doneToday = 0
     const today = todayISO()
     for (const t of filtered) {
-      const key = groupOf(t)
+      const key = groupOf(t, stats.has(t.id))
       if (key === 'done') {
         if (t.completed_at?.slice(0, 10) === today) doneToday++
         continue
       }
       g[key].push(t)
     }
-    for (const key of Object.keys(g) as GroupKey[]) g[key].sort((a, b) => a.sort_order - b.sort_order)
+    // Projects read by deadline (soonest first, undated last); every other
+    // group keeps manual drag order.
+    g.projects.sort((a, b) => (a.due_on ?? '9999-99-99').localeCompare(b.due_on ?? '9999-99-99'))
+    for (const key of ['today', 'upcoming', 'someday'] as GroupKey[]) g[key].sort((a, b) => a.sort_order - b.sort_order)
     return { groups: g, doneToday }
-  }, [filtered])
+  }, [filtered, stats])
 
   const listById = useMemo(() => new Map(lists.map((l) => [l.id, l])), [lists])
 
@@ -98,10 +113,24 @@ export function TasksPage() {
 
       {isLoading && <p style={{ color: 'var(--text-faint)' }}>Loading…</p>}
 
-      {(['today', 'upcoming', 'someday'] as GroupKey[]).map((key) => {
+      {(['projects', 'today', 'upcoming', 'someday'] as GroupKey[]).map((key) => {
         const items = groups[key]
         if (items.length === 0) return null
         const isExpanded = expanded[key]
+        const row = (task: TaskRowType) => (
+          <TaskRow
+            key={task.id}
+            task={task}
+            list={task.list_id ? listById.get(task.list_id) : undefined}
+            progress={key === 'projects' ? stats.get(task.id) : undefined}
+            onOpen={() => setEditing(task)}
+            onComplete={() => {
+              complete(task)
+              show({ message: 'Task completed', actionLabel: 'Undo', onAction: () => reopen(task) })
+            }}
+            onReopen={() => reopen(task)}
+          />
+        )
         return (
           <section key={key} className="flex flex-col gap-2">
             <button
@@ -115,27 +144,17 @@ export function TasksPage() {
               </span>
               <span>{isExpanded ? '⌃' : '⌄'}</span>
             </button>
-            {isExpanded && (
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd(key)}>
-                <SortableContext items={items.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-                  <div className="flex flex-col gap-2">
-                    {items.map((task) => (
-                      <TaskRow
-                        key={task.id}
-                        task={task}
-                        list={task.list_id ? listById.get(task.list_id) : undefined}
-                        onOpen={() => setEditing(task)}
-                        onComplete={() => {
-                          complete(task)
-                          show({ message: 'Task completed', actionLabel: 'Undo', onAction: () => reopen(task) })
-                        }}
-                        onReopen={() => reopen(task)}
-                      />
-                    ))}
-                  </div>
-                </SortableContext>
-              </DndContext>
-            )}
+            {isExpanded &&
+              (key === 'projects' ? (
+                // Sorted by deadline, not manually reordered — no drag here.
+                <div className="flex flex-col gap-2">{items.map(row)}</div>
+              ) : (
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd(key)}>
+                  <SortableContext items={items.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                    <div className="flex flex-col gap-2">{items.map(row)}</div>
+                  </SortableContext>
+                </DndContext>
+              ))}
           </section>
         )
       })}
